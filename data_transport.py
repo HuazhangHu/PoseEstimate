@@ -2,11 +2,11 @@
 import os
 import shutil
 
-path="D:\高速运动关键点检测\data\Data_JumpRope2"
+path="D:\高速运动关键点检测\data\数据标注\outdir"
 dst="D:\高速运动关键点检测\data\Train"
 f_dirs=os.listdir(path)
 print(f_dirs)
-i=0
+i=111
 for f_dir in f_dirs:
     files=os.listdir(os.path.join(path,f_dir))
     for file in files:

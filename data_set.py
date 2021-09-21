@@ -26,14 +26,14 @@ class MyData(Dataset):
         try:
             label_file_name = self.data_dir[inx]
             label_name = self.data_dir[inx].split('.')[0].split("_")[1]
-            label_name = int(label_name)
-            label = np.float32(label_name)
+            label = np.float32(int(label_name))
             item_path = os.path.join(self.root_dir, self.child_dir, label_file_name)
             datawash = DataWash(item_path)
             inputs = datawash.process()
-            sample = {'inputs': inputs, 'label': label}
+            inputs_tensor = torch.Tensor(inputs)
+            # sample = {'inputs': inputs, 'label': label}
 
-            return sample
+            return inputs_tensor, label
 
         except Exception as e:
             logger.error("get item error : %s " % e)
@@ -41,6 +41,10 @@ class MyData(Dataset):
     def __len__(self):
         """返回数据集的大小"""
         return len(self.data_dir)
+
+    # def padding(self, sequences, max_len):
+    #     max_size = max_len
+    #     trailing_dims = max_size[1:]
 
 
 keyword = ["Nose", "LEye", "REye", "LEar", "REar", "LShoulder", "RShoulder", "LElbow", "RElbow", "LWrist", "RWrist",
@@ -59,11 +63,30 @@ def get_gravity(point_a, point_b, point_c):
     return gravity
 
 
-def collate_fn(data):
-    # 先排序 后padding
-    data.sort(key=lambda x: len(x), reverse=True)
-    data = pad_sequence(data, batch_first=True, padding_value=0)
-    return data
+# def collate_fn(batch):
+#     # 先排序 后padding
+#     data = [item[0] for item in batch]
+#     label = [item[1] for item in batch]
+#     for index in range(len(data)):
+#         data[index].sort(key=lambda x: len(x), reverse=True)
+#         data[index] = pad_sequence(data[index], batch_first=True, padding_value=0)
+#     data = np.array(data)
+#     label = np.array(label)
+#     # data.sort(key=lambda x: len(x), reverse=True)
+#     # print(data.size())
+#     # data = pad_sequence(data, batch_first=True, padding_value=0)
+#
+#     return [data,label]
+
+def collate_fn(datas_label):
+    datas_label.sort(key=lambda x: len(x[0]), reverse=True)
+    datas_length = [len(sq[0]) for sq in datas_label]
+
+    datas = [data[0] for data in datas_label]
+    labels = [label[1] for label in datas_label]
+
+    datas = pad_sequence(datas, batch_first=True, padding_value=0)
+    return datas, datas_length, torch.tensor(labels, dtype=torch.float32).view(-1, 1)  # (-1,1) == (unknown,1)
 
 
 class DataWash:
@@ -88,23 +111,24 @@ class DataWash:
                     RHip = data_dict[item]['keypoints'][36:38]
                     gravity = get_gravity(Nose, LHip, RHip)
                     point_array.append(gravity)
-
+                point_array = torch.tensor(point_array)
             return point_array
 
         except Exception as e:
             logger.error("data wash error : %s " % e)
 
-#data_set example
-root_dir = './data'
-label_dir = 'train'
-pose_dataset = MyData(root_dir, label_dir)
-trainloader = DataLoader(pose_dataset, batch_size=2, shuffle=True, collate_fn=collate_fn)
-print(len(trainloader))
-for batch_idx, batch_data in enumerate(trainloader):
-    print(type(batch_data))
-    print(len(batch_data['inputs']))
-    # print(batch_data['label'][0])
-#
+# # data_set example
+# root_dir = './data'
+# label_dir = 'train'
+# pose_dataset = MyData(root_dir, label_dir)
+# trainloader = DataLoader(pose_dataset, batch_size=2, shuffle=True, collate_fn=collate_fn)
+# print(len(trainloader))
+# print(enumerate(trainloader))
+# for batch_idx, batch_data in enumerate(trainloader):
+#     print(type(batch_data))
+#     print(len(batch_data['inputs']))
+#     # print(batch_data['label'][0])
+# #
 # # data_wash example
 # datawash = DataWash('data/AlphaPose/alphapose-results2.json')
 # data = datawash.process()

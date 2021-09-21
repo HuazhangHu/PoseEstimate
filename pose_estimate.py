@@ -27,30 +27,32 @@ class Network(nn.Module):
                             dropout=dropout, bidirectional=bidirectional)
         self.classifier = nn.Linear(hidden_dim, n_classes)
 
-    def forward(self, input_tensor, seq_lens):
-        total_length = input_tensor.size(1) if self.batch_first else input_tensor.size(0)
-        # TODO :padding 排序
-        x_packed = pack_padded_sequence(input_tensor, seq_lens, batch_first=self.batch_first, enforce_sorted=False)
-        y_lstm, (h_n, c_n) = self.lstm(x_packed)
-        y_padded = pad_packed_sequence(y_lstm, batch_first=self.batch_first, total_length=total_length)
-        # 此时可以从out中获得最终输出的状态h
-        # x = out[:, -1, :]
+    def forward(self, inputs):
+        y_lstm, (h_n, c_n) = self.lstm(inputs)
         x = h_n[-1, :, :]
         x = self.classifier(x)
         return x
 
 
 root_dir = './data'
-train_dir = 'data/train'
-valid_dir = 'data/valid'
-Batch_size = 1
+train_dir = 'train'
+valid_dir = 'valid'
+test_dir = 'test'
+Batch_size = 16
+INPUT_DIM = 2
+HIDDEN_DIM = 32
+LSTM_LAYERS = 2
+OUT_DIM = 1
+LR = 0.075
+
 trainloader = DataLoader(MyData(root_dir, train_dir), batch_size=Batch_size, shuffle=True, collate_fn=collate_fn)
 validloader = DataLoader(MyData(root_dir, valid_dir), batch_size=Batch_size, shuffle=True, collate_fn=collate_fn)
+testloader = DataLoader(MyData(root_dir, test_dir), batch_size=1, shuffle=True, collate_fn=collate_fn)
 # TODO :交叉验证
-net = Network(2, 128, 1, 1)
+net = Network(in_dim=INPUT_DIM, hidden_dim=HIDDEN_DIM, n_layer=LSTM_LAYERS, n_classes=OUT_DIM)
 net = net.to('cpu')
 criterion = nn.MSELoss()
-optimizer = optim.SGD(net.parameters(), lr=0.1, momentum=0.9)
+optimizer = optim.Adam(net.parameters(), lr=LR)
 
 
 def train(epoch):
@@ -60,13 +62,12 @@ def train(epoch):
     correct = 0
     total = 0
     print("Train: ")
-    for batch_idx, batch_data in enumerate(trainloader):
-        inputs = torch.Tensor([batch_data['inputs']])
-        targets = torch.as_tensor(batch_data['label'], dtype=torch.float32)
+    batch_idx = 0
+    for inputs, datas_length, targets in trainloader:
         inputs, targets = inputs.to('cpu'), targets.to('cpu')
         optimizer.zero_grad()
-        outputs = net(torch.squeeze(inputs, 1), (Batch_size,))
-        outputs = torch.squeeze(outputs, 1)
+        inputs_pack = pack_padded_sequence(inputs, datas_length, batch_first=True)
+        outputs = net(inputs_pack)
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
@@ -75,36 +76,50 @@ def train(epoch):
         predicted = outputs
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
-
+        batch_idx+=1
         print(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)' %
               (train_loss / (batch_idx + 1), 100. * correct / total, correct, total))
 
 
-def test(epoch):
+def valid(epoch):
     global best_acc
     net.eval()
     test_loss = 0
     correct = 0
     total = 0
+    batch_idx = 0
     print("Vaild: ")
     with torch.no_grad():
-        for batch_idx, batch_data in enumerate(validloader):
-            inputs = torch.Tensor([batch_data['inputs']])
-            targets = torch.as_tensor(batch_data['label'], dtype=torch.float32)
+        for inputs, datas_length, targets in validloader:
             inputs, targets = inputs.to('cpu'), targets.to('cpu')
-            outputs = net(torch.squeeze(inputs, 1), (Batch_size,))
-            outputs = torch.squeeze(outputs, 1)
+            inputs_pack = pack_padded_sequence(inputs, datas_length, batch_first=True)
+            outputs = net(inputs_pack)
             loss = criterion(outputs, targets)
 
             test_loss += loss.item()
             predicted = outputs
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
-
+            batch_idx+= 1
             print(batch_idx, len(validloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
                   % (test_loss / (batch_idx + 1), 100. * correct / total, correct, total))
 
+def Test():
+    net.eval()
+    print("Test: ")
+    for inputs, datas_length, targets in validloader:
+        inputs, targets = inputs.to('cpu'), targets.to('cpu')
+        inputs_pack = pack_padded_sequence(inputs, datas_length, batch_first=True)
+        outputs = net(inputs_pack)
+        predicted =max(outputs.detach().numpy().reshape(1, -1)[0])
+        print(predicted)
+        # predicted = outputs.numpy()
+        #
+        # print(" Prediction : {0}".format(predicted))
 
-for epoch in range(2):
-    train(epoch)
-    test(epoch)
+if __name__ == '__main__':
+    for epoch in range(100):
+        train(epoch)
+        valid(epoch)
+
+        Test()
