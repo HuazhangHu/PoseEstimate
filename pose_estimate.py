@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
+import os
 from torch.utils.data import Dataset, DataLoader
 
 from data_set import MyData, logger, collate_fn
@@ -45,11 +46,15 @@ LSTM_LAYERS = 2
 OUT_DIM = 1
 LR = 0.02
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+torch.manual_seed(1)
+
 trainloader = DataLoader(MyData(root_dir, train_dir), batch_size=Batch_size, shuffle=True, collate_fn=collate_fn)
 validloader = DataLoader(MyData(root_dir, valid_dir), batch_size=Batch_size, shuffle=True, collate_fn=collate_fn)
 testloader = DataLoader(MyData(root_dir, test_dir), batch_size=1, shuffle=True, collate_fn=collate_fn)
 # TODO :交叉验证
-net = Network(in_dim=INPUT_DIM, hidden_dim=HIDDEN_DIM, n_layer=LSTM_LAYERS, n_classes=OUT_DIM)
+net = Network(in_dim=INPUT_DIM, hidden_dim=HIDDEN_DIM, n_layer=LSTM_LAYERS, n_classes=OUT_DIM).to(device)
 net = net.to('cpu')
 criterion = nn.MSELoss()
 optimizer = optim.Adam(net.parameters(), lr=LR)
@@ -64,7 +69,7 @@ def train(epoch):
     print("Train: ")
     batch_idx = 0
     for inputs, datas_length, targets in trainloader:
-        inputs, targets = inputs.to('cpu'), targets.to('cpu')
+        inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
         inputs_pack = pack_padded_sequence(inputs, datas_length, batch_first=True)
         outputs = net(inputs_pack)
@@ -91,7 +96,7 @@ def valid(epoch):
     print("Vaild: ")
     with torch.no_grad():
         for inputs, datas_length, targets in validloader:
-            inputs, targets = inputs.to('cpu'), targets.to('cpu')
+            inputs, targets = inputs.to(device), targets.to(device)
             inputs_pack = pack_padded_sequence(inputs, datas_length, batch_first=True)
             outputs = net(inputs_pack)
             loss = criterion(outputs, targets)
@@ -100,22 +105,24 @@ def valid(epoch):
             predicted = outputs
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
-            batch_idx+= 1
-            print(batch_idx, len(validloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                  % (test_loss / (batch_idx + 1), 100. * correct / total, correct, total))
+            batch_idx += 1
+            print(batch_idx, len(validloader), 'Loss: %.3f '
+                  % (test_loss / (batch_idx + 1)))
+
 
 def Test():
     net.eval()
     print("Test: ")
     for inputs, datas_length, targets in validloader:
-        inputs, targets = inputs.to('cpu'), targets.to('cpu')
+        inputs, targets = inputs.to(device), targets.to(device)
         inputs_pack = pack_padded_sequence(inputs, datas_length, batch_first=True)
         outputs = net(inputs_pack)
-        predicted =max(outputs.detach().numpy().reshape(1, -1)[0])
+        predicted = max(outputs.detach().numpy().reshape(1, -1)[0])
         print(predicted)
         # predicted = outputs.numpy()
         #
         # print(" Prediction : {0}".format(predicted))
+
 
 if __name__ == '__main__':
     for epoch in range(20):
