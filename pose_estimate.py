@@ -43,7 +43,7 @@ INPUT_DIM = 2
 HIDDEN_DIM = 32
 LSTM_LAYERS = 2
 OUT_DIM = 1
-LR = 0.075
+LR = 0.02
 
 trainloader = DataLoader(MyData(root_dir, train_dir), batch_size=Batch_size, shuffle=True, collate_fn=collate_fn)
 validloader = DataLoader(MyData(root_dir, valid_dir), batch_size=Batch_size, shuffle=True, collate_fn=collate_fn)
@@ -76,9 +76,9 @@ def train(epoch):
         predicted = outputs
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
-        batch_idx+=1
-        print(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)' %
-              (train_loss / (batch_idx + 1), 100. * correct / total, correct, total))
+        batch_idx += 1
+        print(batch_idx, len(trainloader), 'Loss: %.3f ' %
+              (train_loss / (batch_idx + 1)))
 
 
 def valid(epoch):
@@ -118,7 +118,7 @@ def Test():
         # print(" Prediction : {0}".format(predicted))
 
 if __name__ == '__main__':
-    for epoch in range(100):
+    for epoch in range(20):
         train(epoch)
         valid(epoch)
 
