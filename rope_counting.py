@@ -159,7 +159,7 @@ def expriment(path):
     print('Accuracy in error 3 : {0}%  ({1}/{2})'.format(100. * acc3 / len(file_list), acc3, len(file_list)))
 
 # # example for single json
-file_test = "data/test/29_129.json"
+file_test = "data/temp/29_129.json"
 # Counter = RepCount(os.path.join(file_test))
 # peaks = Counter.run()
 # print(peaks)

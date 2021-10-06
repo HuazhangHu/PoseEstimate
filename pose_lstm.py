@@ -40,7 +40,7 @@ train_dir = 'train'
 valid_dir = 'valid'
 test_dir = 'test'
 Batch_size = 16
-INPUT_DIM = 2
+INPUT_DIM = 136
 HIDDEN_DIM = 32
 LSTM_LAYERS = 2
 OUT_DIM = 1
@@ -55,7 +55,7 @@ validloader = DataLoader(MyData(root_dir, valid_dir), batch_size=Batch_size, shu
 testloader = DataLoader(MyData(root_dir, test_dir), batch_size=1, shuffle=True, collate_fn=collate_fn)
 # TODO :交叉验证
 net = Network(in_dim=INPUT_DIM, hidden_dim=HIDDEN_DIM, n_layer=LSTM_LAYERS, n_classes=OUT_DIM).to(device)
-net = net.to('cpu')
+net = net.to(device)
 criterion = nn.MSELoss()
 optimizer = optim.Adam(net.parameters(), lr=LR)
 
@@ -117,7 +117,7 @@ def Test():
         inputs, targets = inputs.to(device), targets.to(device)
         inputs_pack = pack_padded_sequence(inputs, datas_length, batch_first=True)
         outputs = net(inputs_pack)
-        predicted = max(outputs.detach().numpy().reshape(1, -1)[0])
+        predicted = max(outputs.detach().cpu().numpy().reshape(1, -1)[0])
         print(predicted)
         # predicted = outputs.numpy()
         #
@@ -128,5 +128,4 @@ if __name__ == '__main__':
     for epoch in range(20):
         train(epoch)
         valid(epoch)
-
         Test()

@@ -42,9 +42,9 @@ class MyData(Dataset):
         """返回数据集的大小"""
         return len(self.data_dir)
 
-    # def padding(self, sequences, max_len):
-    #     max_size = max_len
-    #     trailing_dims = max_size[1:]
+    def padding(self, sequences, max_len):
+        max_size = max_len
+        trailing_dims = max_size[1:]
 
 
 keyword = ["Nose", "LEye", "REye", "LEar", "REar", "LShoulder", "RShoulder", "LElbow", "RElbow", "LWrist", "RWrist",
@@ -62,21 +62,6 @@ def get_gravity(point_a, point_b, point_c):
     gravity = [x_, y_]
     return gravity
 
-
-# def collate_fn(batch):
-#     # 先排序 后padding
-#     data = [item[0] for item in batch]
-#     label = [item[1] for item in batch]
-#     for index in range(len(data)):
-#         data[index].sort(key=lambda x: len(x), reverse=True)
-#         data[index] = pad_sequence(data[index], batch_first=True, padding_value=0)
-#     data = np.array(data)
-#     label = np.array(label)
-#     # data.sort(key=lambda x: len(x), reverse=True)
-#     # print(data.size())
-#     # data = pad_sequence(data, batch_first=True, padding_value=0)
-#
-#     return [data,label]
 
 def collate_fn(datas_label):
     datas_label.sort(key=lambda x: len(x[0]), reverse=True)
@@ -99,23 +84,52 @@ class DataWash:
 
     def process(self):
         """
-        :return: list[dist] 包含每一帧图片信息的list
+        :return: list[dist] 整个视频信息
         """
         try:
             with open(self.data_path, 'r') as load_f:
                 data_dict = json.load(load_f)
                 point_array = []
-                for item in range(len(data_dict)):
-                    Nose = data_dict[item]['keypoints'][0:2]
-                    LHip = data_dict[item]['keypoints'][33:35]
-                    RHip = data_dict[item]['keypoints'][36:38]
-                    gravity = get_gravity(Nose, LHip, RHip)
-                    point_array.append(gravity)
-                point_array = torch.tensor(point_array)
+                flame_num = len(data_dict)
+                for item in range(64):
+                    # Nose = data_dict[item]['keypoints'][0:2]
+                    # LHip = data_dict[item]['keypoints'][33:35]
+                    # RHip = data_dict[item]['keypoints'][36:38]
+                    # gravity = get_gravity(Nose, LHip, RHip)
+                    # point_array.append(gravity)
+                    key_points = np.array(data_dict[item]['keypoints'])
+                    key_points = np.reshape(key_points, (17, 3))
+                    l2_distance = self.pairwise_l2_distance(key_points)  # 每一帧的l2_distance (136,1)
+
+                    # print(len(l2_distance))
+                    point_array.append(l2_distance)
+                point_array = np.array([point_array])  # (flame_num , 136)
+                # point_array = torch.tensor(point_array)  # (flame_num , 136)
             return point_array
 
         except Exception as e:
             logger.error("data wash error : %s " % e)
+
+    def get_l2_distance(self, a, b):
+        """Computes pairwise distances between a point and b point."""
+        dist = np.sqrt(np.sum((a - b) ** 2))
+        return dist
+
+    def pairwise_l2_distance(self, points):
+        """遍历数组两两计算l2距离"""
+        distance = []
+        r = points.shape[0]  # 行数
+        c = points.shape[1]  # 列数
+        i = 0
+        while i < r:
+            j = i + 1
+            while j < r:
+                res = self.get_l2_distance(points[i], points[j])
+                distance.append(res)
+                j += 1
+            i += 1
+
+        return distance
 
 # # data_set example
 # root_dir = './data'
@@ -128,9 +142,8 @@ class DataWash:
 #     print(type(batch_data))
 #     print(len(batch_data['inputs']))
 #     # print(batch_data['label'][0])
-# #
-# # data_wash example
-# datawash = DataWash('data/AlphaPose/alphapose-results2.json')
+# #data_wash example
+# datawash = DataWash('data/valid/1_10.json')
 # data = datawash.process()
 # print(data)
 #
